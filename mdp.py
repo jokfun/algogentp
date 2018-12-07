@@ -12,7 +12,7 @@ import scipy.stats
 def fct(k):
     return k
 
-def mdp(password,poss,popmax,generationmax,Tmutation,prob_CO=0.7, c=0.90, freq_bad=0.10):
+def mdp(poss,popmax,generationmax,Tmutation,prob_CO=0.7, c=0.90, freq_bad=0.10):
     """
         Fonction principale, va effectuer la boucle principale des algos génétiques
         password : le mot de passe à retrouver
@@ -34,16 +34,17 @@ def mdp(password,poss,popmax,generationmax,Tmutation,prob_CO=0.7, c=0.90, freq_b
 
     # Main loop
     for i in range(0,generationmax):
-        fit = fitness(genes,password)
+        fit = fitness(genes)
         val = genes[fit.index(max(fit))]
         maxi = max(fit)
+        mini = min(fit)
         fit_moy = np.mean(fit)
         bestFitnesses.append(maxi)
 
         word = ""
         for k in val:
             word+=k
-        print(word," score :",maxi, "mean : ", fit_moy)
+        print(word," score :",maxi, "mean : ", fit_moy, 'min : ', mini)
 
         # Selection + mutation
         genes = selection(genes,fit,prob_CO, c, freq_bad)
@@ -74,11 +75,25 @@ def selection(population, fitnesses, prob_CO, c = 0.90, freq_bad = 0.10):
         #print('PARENTS : ', population[indParents[0]], population[indParents[1]])
         r = random.random()
         if r < prob_CO:
-            # Crossing over
-            k = random.randint(2,11)
-            enfant1 = population[indParents[0]][:k] + population[indParents[1]][k:]
-            enfant2 = population[indParents[1]][:k] + population[indParents[0]][k:]
-            #print('ENFANTS :', enfant1, enfant2)
+            # Crossing over (random)
+            enfant1 = []
+            enfant2 = []
+            for ind in range(len(population[0])):
+                rand = random.random()
+                if rand < 0.5:
+                    enfant1.append(population[indParents[0]][ind])
+                    enfant2.append(population[indParents[1]][ind])
+                else:
+                    enfant1.append(population[indParents[1]][ind])
+                    enfant2.append(population[indParents[0]][ind])
+
+# =============================================================================
+#             k = random.randint(2,11)
+#             print(population[indParents[0]])
+#             enfant1 = population[indParents[0]][:k] + population[indParents[1]][k:]
+#             enfant2 = population[indParents[1]][:k] + population[indParents[0]][k:]
+#             #print('ENFANTS :', enfant1, enfant2)
+# =============================================================================
         else:
             # Pas de crossing over
             enfant1 = population[indParents[0]]
@@ -97,7 +112,7 @@ def selection(population, fitnesses, prob_CO, c = 0.90, freq_bad = 0.10):
     return newGeneration
 
 
-def fitness(tab,mdp):
+def fitness(tab):
     """
         Créer la fitness de chaque élement en fonction de la distance de chacun au password
     """
@@ -161,19 +176,20 @@ popmax=200
 generationmax = 100000
 
 #Le taux de mutation est assez faible mais pas trop : il faut converger vite sans pour autant créer trop d'aléatoire
-Tmutation = 0.3
+Tmutation = 0.03
 
 #Proba de crossing over entre les parents lors de la selection
-prob_CO = 0.90
+prob_CO = 0.80
 
 #Parametre lors de la selection par rang
-c = 0.95
+c = 0.99
 
-freq_bad = 0.15
+#Proportion des individus les plus mauvais gardés à chaque tour
+freq_bad = 0.10
 
 
 
-mdp(password,poss,popmax,generationmax,Tmutation,prob_CO, c, freq_bad)
+mdp(poss,popmax,generationmax,Tmutation,prob_CO, c, freq_bad)
 
 
 # =============================================================================
