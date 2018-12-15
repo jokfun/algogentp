@@ -1,45 +1,75 @@
 # -*- coding: utf-8 -*
 
 from random import randint,uniform
-import sys
 import subprocess
-from math import exp,log
 import matplotlib.pyplot as plt
 import numpy as np
 import random
 import scipy.stats
 
-def fct(k):
-    return k
+def phenotypes_to_genotypes(phenotypes, poss):
+    """
+        Converti une liste de phenotypes d'individus en une liste de genotypes correspondant
+        Un element du phenotype est traduit en gene par son indice dans la liste des elements phenotypiques possibles
+        phenotypes : liste de phenotypes
+        poss : liste des caracteres possibles des phenotypes
+    """
+    genotypes = []
+    for phenotype in phenotypes:
+        genome = []
+        for char in phenotype:
+            genome.append(poss.index(char))
+        genotypes.append(genome)
+    return genotypes
+
+def genotypes_to_phenotypes(genotypes, poss):
+    """
+        Converti une liste de genotypes d'individus en une liste de phenotypes correspondant
+        genotypes : liste de genotypes
+        poss : liste des caracteres possibles des phenotypes
+    """
+    phenotypes = []
+    for genotype in genotypes:
+        phenotype = []
+        for gene in genotype:
+            phenotype.append(poss[gene])
+        phenotypes.append(phenotype)
+    return phenotypes
 
 def mdp(poss,popmax,generationmax,Tmutation,prob_CO=0.7, c=0.90, freq_bad=0.10, freq_rand=0.10):
     """
         Fonction principale, va effectuer la boucle principale des algos génétiques
-        password : le mot de passe à retrouver
-        poss : les différentes valeurs que peut prendre un chromosome
-        popmax : la population à créer
+        poss : les différentes valeurs possibles des briques elementaires du phenotype
+        popmax : Nb d'individus à creer
         generationmax : le nombre maximale d'itération à générer
-        Tmutation : le taux de mutation d'un élement
-        keep : le taux de population choisie lors de la sélection, le reste sera pris au hasard
+        Tmutation : le taux de mutation d'un élement du genotype
+        prob_CO : probabilité que 2 individus choisis lors de la selection font un crossing over
+        freq_bad : proportion de mauvais individus selectionné lors de la selection
+        freq_rand : proportion de individus selectionné au hasard lors de la selection
     """
-    # Initialisation
+    # On sauvegrade les fitness max et moyenne a chaque generation dans ces listes
     meanFitnesses = []
     bestFitnesses = []
 
-    # Fitness max jamais rencontrée
+    # Fitness max jamais rencontrée au cours de la simulation
     MAX = 0
 
-    genes = []
+    # Initialisation aléatoire des phenotypes des individus
+    phenotypes = []
     for i in range(0,popmax):
         new = []
         for j in range(0,12):
             new.append(poss[randint(0,len(poss)-1)])
-        genes.append(new)
+        phenotypes.append(new)
 
-    # Main loop
+
     for i in range(0,generationmax):
-        fit = fitness(genes)
-        val = genes[fit.index(max(fit))]
+        # Main loop
+
+        # Fitness des individus
+        fit = fitness(phenotypes)
+        # On sauvegarde le meilleurs mdp, la fitness max et moyenne
+        val = phenotypes[fit.index(max(fit))]
         maxi = max(fit)
         word = ""
         for k in val:
@@ -51,18 +81,18 @@ def mdp(poss,popmax,generationmax,Tmutation,prob_CO=0.7, c=0.90, freq_bad=0.10, 
         bestFitnesses.append(maxi)
         meanFitnesses.append(fit_moy)
 
+        # Print toutes les 50 générations
         if i % 50 == 0:
             print(i, word)
             print("MAX :", MAX, "max :", maxi, "mean :", fit_moy)
-            #fit.sort()
-            #fit.reverse()
-            #print(fit)
-            #print(genes)
 
-
-        # Selection + mutation
-        genes = selection(genes,fit,prob_CO, c, freq_bad, freq_rand)
-        genes = mutation(genes,Tmutation,poss)
+        # Converti les phenotypes des individus en genotypes
+        genotypes = phenotypes_to_genotypes(phenotypes, poss)
+        # Selection + mutation (sur les genotypes)
+        genotypes = selection(genotypes,fit,prob_CO, c, freq_bad, freq_rand)
+        genotypes = mutation(genotypes,Tmutation,poss)
+        # Reconversion en phenotypes
+        phenotypes = genotypes_to_phenotypes(genotypes, poss)
 
         #Si on trouve le bon mot de passe, on quitte la boucle
         if maxi==1:
@@ -72,6 +102,16 @@ def mdp(poss,popmax,generationmax,Tmutation,prob_CO=0.7, c=0.90, freq_bad=0.10, 
 
 
 def selection(population, fitnesses, prob_CO, c = 0.90, freq_bad = 0.10, freq_rand = 0.10):
+    """
+        Fonction de selection par les individus
+        Une proportion freq_bad des individus sont selectionnés parmis les plus mauvais individus
+        Une proportion freq_rand des individus sont selectionnés au hasard
+        Le reste sont selectionnés à l'aide d'une roulette exponentielle par rang
+        Les individus selectionnes sont ensuite parcouru aleatoirement 2 par 2 et ont chance de prob_CO
+        de réaliser un crossing over pour donner les enfants
+        population : liste de genotype
+        fitnesses : liste des fitness des individus
+    """
     newGeneration = [] # Nouveaux indvidus apres selection
     N = len(population) # Nb d'individus
 
@@ -86,8 +126,6 @@ def selection(population, fitnesses, prob_CO, c = 0.90, freq_bad = 0.10, freq_ra
 
     # Applique un scalaire pour que la somme des poids = 1
     weights = np.array(weights) / sum(weights)
-    # Indices des individus les plus mauvais
-    #bad_indexes = np.argsort(weights)[:int(N*freq_bad)]
 
     # Indices des parents selectionnés aleatoirement, parmis les plus mauvais et avec la roulette
     inds_randoms = np.random.choice(range(0,N),  int(N * freq_rand))
@@ -96,13 +134,13 @@ def selection(population, fitnesses, prob_CO, c = 0.90, freq_bad = 0.10, freq_ra
 
     # Indices de tous les parents
     indParents = np.concatenate((inds_randoms, inds_roulette, inds_mauvais))
-    np.random.shuffle(indParents)
-    #print(indParents)
+    np.random.shuffle(indParents) # Melange
     i = 0
     while(i < N):
         r = random.random()
         if r < prob_CO:
             # Crossing over classique ou tirage aleatoire pour chaque caractere a partir des 2 parents
+            # 1 chance sur 2 pour les 2 méthodes
             r2 = random.random()
             if r2 < 0.5:
                 enfant1 = []
@@ -137,6 +175,7 @@ def selection(population, fitnesses, prob_CO, c = 0.90, freq_bad = 0.10, freq_ra
 def fitness(tab):
     """
         Créer la fitness de chaque élement en fonction de la distance de chacun au password
+        tab : liste des phenotypes
     """
     result = []
     execute = ['./ibi_2018-2019_fitness_linux', "10"]
@@ -151,115 +190,70 @@ def fitness(tab):
         val[i] = float((val[i].split("t"))[1])
     val = val[:-1]
     for k in val:
-        result.append(fct(k))
+        result.append(k)
     return result
 
 
-def mutation(tab,Tmut,poss):
+def mutation(genomes,Tmut,poss):
     """
         fontion de mutation : chaque position a une chance de Tmut d'etre muté
+        genomes : liste de genotypes
+        poss : liste des caracteres possible pour le phenotype
+        si un gene mute, sa valeur est incrementée d'une loi normal de moyenne 0 et d'un ecart type de 10
     """
-    for k in range(len(tab)):
-        for i in range(len(tab[k])):
+    for k in range(len(genomes)):
+        for i in range(len(genomes[k])):
             if uniform(0,1)<Tmut:
                 r = random.random()
-                if r < 0.5 or i == len(tab[k]) - 1:
-                    tab[k][i] = poss[randint(0,len(poss)-1)]
+                if r < 0.95 or i == len(genomes[k]) - 1:
+                    genomes[k][i] = (int(np.random.normal(genomes[k][i], 10))%len(poss))
                 else:
-                    tab[k][i], tab[k][i+1] = tab[k][i+1], tab[k][i]
-    return tab
-
-# =============================================================================
-#     result = []
-#     for k in tab:
-#         new = []
-#         for ele in k:
-#             if uniform(0,1)<Tmut:
-#                 new.append(poss[randint(0,len(poss)-1)])
-#             else:
-#                 new.append(ele)
-#         result.append(new)
-#     return result
-# =============================================================================
+                    genomes[k][i], genomes[k][i+1] = genomes[k][i+1], genomes[k][i]
+    return genomes
 
 
 
 #Les paramètres choisis ici ont été affinés après plusieurs essais afin de converger le plus vite possible
 #Ils ne sont pas forcément optimaux
-
-poss=[str(i) for i in range(0,10)]+['_',"A", "B", "C", "D", "E", "F", "G", "H", "I", "G", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z"]
+poss=["A", "B", "C", "D", "E", "F", "G", "H", "I", "G", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z"] + [str(i) for i in range(0,10)] + ["_"]
 
 #La population max est assez conséquente afin de pouvoir tester beaucoup d'individus
 popmax = 400
 
-#Le nombre d'iteration max est fixé à 1000, qui est suffisant pour la plupart des exemples
+#Nb de generations
 generationmax = 10000000
 
-#Le taux de mutation est assez faible mais pas trop : il faut converger vite sans pour autant créer trop d'aléatoire
+#On met un taux de mutation assez elevé pour brasser l'ensemble des phenotypes possibles
 Tmutation = 0.15
 
 #Proba de crossing over entre les parents lors de la selection
-prob_CO = 0.60
+prob_CO = 0.75
 
-#Parametre lors de la selection par rang
+#Parametre lors de la selection par rang (on conserve en priorité les meilleurs individus)
 c = 0.95
 
 #Proportion des individus les plus mauvais gardés à chaque tour
 freq_bad = 0.15
 
 #Proportio d'individus choisis aleatoirement a chaque tour
-freq_rand = 0.10
-
+freq_rand = 0.05
 
 
 results = mdp(poss,popmax,generationmax,Tmutation,prob_CO, c, freq_bad, freq_rand)
 
 
-# =============================================================================
-# def selection(tab,fit,keep):
-#     """
-#         Fonction de sélection en fonction de la fitness de chaque élement
-#         Reprendre une roulette de choix dont chaque partie a plus ou moins de chance d'être selectionnée
-#         Si keep < 1, une part de la nouvelle génération sera sélectionnée aléatoirement
-#     """
-#     tab = tab[:]
-#     result = []
-#     tailleMax= len(tab)
-#     fitPond = [k for k in fit]
-#     fitMax = sum(fitPond)
-#     for i in range(0,int(keep*tailleMax)):
-#         val = 0.0
-#         choix = uniform(0,fitMax)
-#         j = 0
-#         while val<choix:
-#             val+=fitPond[j]
-#             j+=1
-#         j-=1
-#         result.append(tab[j])
-#     while(len(result)<tailleMax):
-#         result.append(tab[randint(0,tailleMax-1)])
-#     return result
-# =============================================================================
+#%% Plot fitness max et moyenne au cours des generations
+plt.plot(results[1])
+plt.plot(results[2])
+plt.legend(['fitness moyenne' ,'fitness max'])
+plt.xlabel('generation')
+plt.ylabel('fitness')
+plt.savefig('./fitness.png')
+plt.show()
+
+print('mot de passe :', results[0])
 
 
 
 
-# =============================================================================
-# def croisement(tab):
-#     """
-#         Implémentation du croisement génétique
-#         On coupe à une position aléatoire les deux gènes et
-#         la partie gauche de l'un va aller avec la partie droite de l'autre afin de créer un nouveau gènes
-#     """
-#     result = []
-#     for i in range(0,len(tab),2):
-#         pos1,pos2 = randint(0,len(tab)-1),randint(0,len(tab)-1)
-#         while(pos1==pos2):
-#             pos2 = randint(0,len(tab)-1)
-#         val = randint(0,len(tab[0])-1)
-#         new1 = tab[pos1][0:val] + tab[pos2][val:]
-#         new2 = tab[pos2][0:val] + tab[pos1][val:]
-#         result.append(new1)
-#         result.append(new2)
-#     return result
-# =============================================================================
+
