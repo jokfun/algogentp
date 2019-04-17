@@ -4,3 +4,7 @@ Ce TP a pour objectif de réaliser un algorithme génétique dont le but est de 
 
 AlgoGen.py : Implémentation de l'algorithme génétique
 courbe.py : Etude de la fonction de fitness
+
+## Méthode
+
+L'implémentation de l'algorithme génétique est expliquée dans le compte rendu du rapport "TP_AlgoGen_PISTER_TEITGEN.pdf"
